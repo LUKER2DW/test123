@@ -55,7 +55,8 @@ Remove-Item $wifiDir -Recurse -Force
 ) | %{
     $base = $_.P
     $_.F | %{
-        $file = Get-ChildItem $base -Recurse -File -Name $_ -EA 0 | Select -First 1
+        $fileName = $_                                 # <-- salva nome
+        $file = Get-ChildItem $base -Recurse -File -Name $fileName -EA 0 | Select -First 1
         if($file){
             $src = Join-Path $base $file
             $dst = Join-Path $work ("13_" + $_.Name + "_" + [IO.Path]::GetFileName($src))
