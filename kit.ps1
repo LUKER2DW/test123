@@ -1,4 +1,4 @@
-o# ---------- KIT v7.0 – “Festa do Coringa” ----------
+# ---------- KIT v7.0 – “Festa do Coringa” ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
