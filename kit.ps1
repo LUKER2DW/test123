@@ -87,8 +87,8 @@ Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length bytes)"
 Write-Log "[UP] Enviando para AnonFiles..."
 Write-Log "[UP] URL usada: $upUrl"
 try {
-    $curl = (Get-Command curl.exe -ErrorAction Stop).Source
-    $reply = & $curl -s -X POST -H 'Content-Type: multipart/form-data' -F "file=@$zip;type=application/zip" $upUrl
+    $cmdLine = 'curl.exe -s -X POST -H "Content-Type: multipart/form-data" -F "file=@' + $zip + ';type=application/zip" ' + $upUrl
+    $reply = cmd /c $cmdLine
     Write-Log "[UP] Resposta bruta: $reply"
     if ($reply -match '"full":"([^"]+)"') {
         Write-Log "[OK] Upload finalizado – link: $($matches[1])"
