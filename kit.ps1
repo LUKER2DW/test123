@@ -32,7 +32,7 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -File -EA 0 |
     Set-Content (Join-Path $work '10_RecentFiles.json') -Encoding UTF8
 
 # ---------- 3) Certificados ----------
-Get-Indexing Cert:\CurrentUser\My -EA 0 |
+Get-ChildItem Cert:\CurrentUser\My -EA 0 |
     Select Subject,Thumbprint,NotAfter |
     ConvertTo-Json -Compress |
     Set-Content (Join-Path $work '11_Certs.json') -Encoding UTF8
